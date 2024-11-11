@@ -52,15 +52,17 @@ function get_world_probs(w::WMC, query::JointQuery, evidence::AnyBool)
 end
 
 
-function pr_impl(cudd::Cudd, evidence, queries::Vector{JointQuery}, errors, dots)
-    w = WMC(
-        BDDCompiler(Iterators.flatten((
-            Iterators.flatten(query.bits for query in queries),
-            (err[1] for err in errors),
-            [evidence],
-            Iterators.flatten(xs for (xs, filename) in dots),
-        )))
-    )
+function pr_impl(cudd::Cudd, evidence, queries::Vector{JointQuery}, errors, dots, time_limit, time_start)
+    compiler = BDDCompiler(Iterators.flatten((
+        Iterators.flatten(query.bits for query in queries),
+        (err[1] for err in errors),
+        [evidence],
+        Iterators.flatten(xs for (xs, filename) in dots),
+    )))
+    compiler.time_limit = time_limit
+    compiler.time_start = time_start
+
+    w = WMC(compiler)
 
     enable_reordering(w.c, cudd.reordering_type)
 

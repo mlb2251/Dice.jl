@@ -10,6 +10,8 @@ mutable struct BDDCompiler
     num_uncompiled_parents::Dict{Dist{Bool}, Int}
     cache::Dict{AnyBool, CuddNode}
     level_to_flip::Dict{Integer, Flip}
+    time_limit::Float64
+    time_start::Float64
 end
 
 function BDDCompiler()
@@ -19,6 +21,8 @@ function BDDCompiler()
         Dict{Dist{Bool}, Int}(),
         Dict{AnyBool, CuddNode}(),
         Dict{Integer, Any}(),
+        0.0,
+        0.0,
     )
     Cudd_DisableGarbageCollection(c.mgr)
     c.cache[false] = constant(c.mgr, false)
@@ -78,6 +82,13 @@ function compile(c::BDDCompiler, roots::Vector{<:AnyBool})::Vector{CuddNode}
     [compile_existing(c, root) for root in roots]
 end
 
+struct DiceTimeoutException <: Exception end
+function exception_if_timeout(c::BDDCompiler)
+    if c.time_limit > 0. && time() - c.time_start > c.time_limit
+        throw(DiceTimeoutException())
+    end
+end
+
 function compile_existing(c::BDDCompiler, root::AnyBool)::CuddNode
     haskey(c.cache, root) && return c.cache[root]
     root ∉ c.roots && error("Can only compile roots added to BDDCompiler")
@@ -94,6 +105,7 @@ function compile_existing(c::BDDCompiler, root::AnyBool)::CuddNode
     end
     
     fl(n::Flip) = begin
+        exception_if_timeout(c)
         if !haskey(c.cache, n)
             error("flip not precompiled")
             # c.cache[n] = new_var(c.mgr)
@@ -102,6 +114,7 @@ function compile_existing(c::BDDCompiler, root::AnyBool)::CuddNode
     end
 
     fi(n::DistAnd, call) = begin
+        exception_if_timeout(c)
         if !haskey(c.cache, n)
             call(n.x)
             call(n.y)
@@ -112,6 +125,7 @@ function compile_existing(c::BDDCompiler, root::AnyBool)::CuddNode
     end
 
     fi(n::DistOr, call) = begin
+        exception_if_timeout(c)
         if !haskey(c.cache, n)
             call(n.x)
             call(n.y)
@@ -123,6 +137,7 @@ function compile_existing(c::BDDCompiler, root::AnyBool)::CuddNode
 
     # TODO: is GC right with complement arcs? I think so... - Ryan
     fi(n::DistNot, call) = begin
+        exception_if_timeout(c)
         if !haskey(c.cache, n)
             call(n.x)
             c.cache[n] = negate(c.mgr, c.cache[n.x])

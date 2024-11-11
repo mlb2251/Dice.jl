@@ -15,12 +15,12 @@ end
 
 Base.zero(::Type{Nat.t}) = Nat.Z()
 
-function Base.:(+)(x::Nat.t, y::Nat.t)
-    match(y, [
-        "Z" => () -> x
-        "S" => y′ -> Nat.S(x) + y′
-    ])
-end
+# function Base.:(+)(x::Nat.t, y::Nat.t)
+#     match(y, [
+#         "Z" => () -> x
+#         "S" => y′ -> Nat.S(x) + y′
+#     ])
+# end
 
 function nat_ast_to_int(ast)
     name, children = ast

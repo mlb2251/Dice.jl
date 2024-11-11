@@ -27,8 +27,10 @@ function pr(queries::Vector{JointQuery}; evidence::AnyBool = true,
             errors::Vector{CondError} = CondError[],
             dots::Vector{Tuple{Vector{AnyBool}, String}} = Tuple{Vector{AnyBool}, String}[],
             algo::InferAlgo = default_infer_algo(),
+            time_limit::Float64 = 0.,
+            time_start::Float64 = time(),
             ) 
-    pr_impl(algo, evidence, queries, errors, dots)
+    pr_impl(algo, evidence, queries, errors, dots, time_limit, time_start)
 end
 
 function pr(queries::JointQuery...; kwargs...)
