@@ -27,14 +27,23 @@ constant(mgr::CuddMgr, c:: Bool) =
 biconditional(mgr::CuddMgr, x, y) =
     rref(Cudd_bddXnor(mgr, x, y))
 
-conjoin(mgr::CuddMgr, x, y) =
-    rref(Cudd_bddAnd(mgr, x, y))
+function conjoin(mgr::CuddMgr, x, y)
+    res = Cudd_bddAnd(mgr, x, y)
+    res != C_NULL && rref(res)
+    res
+end
 
-disjoin(mgr::CuddMgr, x, y) =
-    rref(Cudd_bddOr(mgr, x, y))
+function disjoin(mgr::CuddMgr, x, y)
+    res = Cudd_bddOr(mgr, x, y)
+    res != C_NULL && rref(res)
+    res
+end
 
-negate(::CuddMgr, x) = 
-    rref(not(x))
+function negate(mgr::CuddMgr, x)
+    res = not(x)
+    res != C_NULL && rref(res)
+    res
+end
 
 ite(mgr::CuddMgr, cond, then, elze) =
     rref(Cudd_bddIte(mgr, cond, then, elze))

@@ -12,6 +12,7 @@ mutable struct BDDCompiler
     level_to_flip::Dict{Integer, Flip}
     time_limit::Float64
     time_start::Float64
+    cudd_limit::Int
 end
 
 function BDDCompiler()
@@ -23,6 +24,7 @@ function BDDCompiler()
         Dict{Integer, Any}(),
         0.0,
         0.0,
+        -1,
     )
     Cudd_DisableGarbageCollection(c.mgr)
     c.cache[false] = constant(c.mgr, false)
@@ -82,11 +84,55 @@ function compile(c::BDDCompiler, roots::Vector{<:AnyBool})::Vector{CuddNode}
     [compile_existing(c, root) for root in roots]
 end
 
-struct DiceTimeoutException <: Exception end
+struct DiceTimeoutException <: Exception
+    c::BDDCompiler
+end
 function exception_if_timeout(c::BDDCompiler)
     if c.time_limit > 0. && time() - c.time_start > c.time_limit
-        throw(DiceTimeoutException())
+        throw(DiceTimeoutException(c))
     end
+end
+
+function set_time_limit(c::BDDCompiler, time_limit::Float64, start_time::Float64)
+    c.time_limit = time_limit
+    c.time_start = start_time
+    nothing
+end
+
+function set_cudd_limit(c::BDDCompiler)
+    if c.time_limit > 0.
+        elapsed = time() - c.time_start
+        remaining = max(0, c.time_limit - elapsed) + 2 # 2 second wiggle room because CUDD sometimes exits earlier than it should. Worht changing this to 1.2x or something instead
+        c.cudd_limit = ceil(Int, remaining * 1000) # ms
+        return c.cudd_limit
+    end
+    nothing
+end
+
+function start_timer(c::BDDCompiler)
+    if c.time_limit > 0.
+        set_cudd_limit(c)
+        Cudd_ResetStartTime(c.mgr)
+        Cudd_SetTimeLimit(c.mgr, c.cudd_limit)
+    end
+    nothing
+end
+
+
+# function start_timer(c::BDDCompiler)
+#     if c.cudd_limit > -1
+#         Cudd_SetTimeLimit(c.mgr, c.cudd_limit)
+#         # @assert Cudd_ReadTimeLimit(c.mgr) == c.cudd_limit
+#     end
+#     nothing
+# end
+
+function stop_timer(c::BDDCompiler)
+    if c.cudd_limit > -1
+        # @assert Cudd_ReadTimeLimit(c.mgr) == c.cudd_limit
+        Cudd_UnsetTimeLimit(c.mgr)
+    end
+    nothing
 end
 
 function compile_existing(c::BDDCompiler, root::AnyBool)::CuddNode
@@ -118,7 +164,13 @@ function compile_existing(c::BDDCompiler, root::AnyBool)::CuddNode
         if !haskey(c.cache, n)
             call(n.x)
             call(n.y)
-            c.cache[n] = conjoin(c.mgr, c.cache[n.x], c.cache[n.y])
+            # println("conjoin at $(time() - c.time_start)")
+            start_timer(c)
+            res = conjoin(c.mgr, c.cache[n.x], c.cache[n.y])
+            stop_timer(c)
+            res == C_NULL && throw(DiceTimeoutException(c))
+            c.cache[n] = res
+            # println("conjoin done")
             mark_as_compiled(n)
         end
         c.cache[n]
@@ -129,7 +181,13 @@ function compile_existing(c::BDDCompiler, root::AnyBool)::CuddNode
         if !haskey(c.cache, n)
             call(n.x)
             call(n.y)
-            c.cache[n] = disjoin(c.mgr, c.cache[n.x], c.cache[n.y])
+            # println("disjoin")
+            start_timer(c)
+            res = disjoin(c.mgr, c.cache[n.x], c.cache[n.y])
+            stop_timer(c)
+            res == C_NULL && throw(DiceTimeoutException(c))
+            # println("disjoin done")
+            c.cache[n] = res
             mark_as_compiled(n)
         end
         c.cache[n]
@@ -140,7 +198,13 @@ function compile_existing(c::BDDCompiler, root::AnyBool)::CuddNode
         exception_if_timeout(c)
         if !haskey(c.cache, n)
             call(n.x)
-            c.cache[n] = negate(c.mgr, c.cache[n.x])
+            # println("negate")
+            start_timer(c)
+            res = negate(c.mgr, c.cache[n.x])
+            stop_timer(c)
+            # println("negate done")
+            res == C_NULL && throw(DiceTimeoutException(c))
+            c.cache[n] = res
             mark_as_compiled(n)
         end
         c.cache[n]

@@ -59,8 +59,7 @@ function pr_impl(cudd::Cudd, evidence, queries::Vector{JointQuery}, errors, dots
         [evidence],
         Iterators.flatten(xs for (xs, filename) in dots),
     )))
-    compiler.time_limit = time_limit
-    compiler.time_start = time_start
+    set_time_limit(compiler, time_limit, time_start)
 
     w = WMC(compiler)
 
