@@ -144,7 +144,7 @@ end
 "Construct a categorical distribution from a vector of probabilities `probs` 
 (using the bitwise Holtzen encoding strategy)"
 function discrete(::Type{DistUInt{W}}, probs) where W
-    @assert sum(probs) ≈ 1 "Probabilities $probs do not sum to one ($(sum(probs)))"
+    @assert isapprox(sum(probs), 1, atol=1e-6) "Probabilities $probs do not sum to one ($(sum(probs)))"
     V = ndigits(length(probs)-1; base=2)
     probs = vcat(probs, zeros(2^V - length(probs)))
     bits = []
